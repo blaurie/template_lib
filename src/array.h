@@ -1,3 +1,40 @@
+/**
+ * array is an automatically growing array.
+ *
+ * Options:
+ * Define TL_NO_ZERO_MEM to prevent zeroing of memory when not necessary for array to function.
+ *
+ * Note:
+ * All defined are consumed by array.h and will need to be redefined if including again, or including another template.
+ *
+ * Examples:
+ *
+ * ---------- Example with a primitive type:
+ * #define TL_T int
+ * #include <array.h>
+ *
+ *
+ * ---------- Example with a pointer:
+ * The notable difference here is that TL_NAME must be defined in order for symbols to successfully generate.
+ *
+ * #define TL_T char*
+ * #define TL_NAME char
+ * #include <array.h>
+ *
+ *
+ * ---------- Example with a struct without a typedef:
+ * struct point
+ * {
+ * 	int x;
+ * 	int y;
+ * };
+ *
+ * #define TL_T struct point
+ * #define TL_NAME point
+ * #include <array.h>
+ */
+
+
 #include "common.h"
 
 #ifndef TL_T
