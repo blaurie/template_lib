@@ -23,6 +23,8 @@
  *
  *
  * ---------- Example with a struct without a typedef:
+ * //Keep in mind when using a struct that the compiler must know the definition of the struct before including
+ * array.h. A forward declare will not work (because the compiler must know how large the struct is!)
  * struct point
  * {
  * 	int x;
