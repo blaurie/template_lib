@@ -18,6 +18,8 @@ void test_null_term_fnv1a(void)
 {
 	TEST_ASSERT(0x07f89207b4ba08a4u == tlhash_ntfnv1a("10"));
 	TEST_ASSERT(0x779a65e7023cd2e7u == tlhash_ntfnv1a("hello world"));
+	TEST_ASSERT(0x50d090ef4acbcc21u == tlhash_ntfnv1a("tset"));
+	TEST_ASSERT(0x212fe4f34cebe1b5u == tlhash_ntfnv1a("tsettset"));
 }
 
 void test_typed_fnv1a(void)
@@ -41,14 +43,11 @@ struct point
 
 #include "hash_algorithm.h"
 
-
-
-
 void test_struct_fnv1a(void)
 {
 	struct point p;
-	p.x = 1952805748;
-	p.y = 1952805748;
+	p.x = 1952805748;	//tset
+	p.y = 1952805748;	//tset
 	TEST_ASSERT(0x212fe4f34cebe1b5u == fmap_test_point_fnv1a(p));
 }
 
@@ -59,6 +58,7 @@ int main(void)
 
 	RUN_TEST(test_null_term_fnv1a);
 	RUN_TEST(test_typed_fnv1a);
+	RUN_TEST(test_struct_fnv1a);
 
 	return UNITY_END();
 }
