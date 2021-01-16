@@ -37,7 +37,7 @@
  */
 
 
-#include "common.h"
+#include "private/common.h"
 
 #ifndef TL_T
 #error "TL_T macro is required for array.h. Define to a type of choice"
