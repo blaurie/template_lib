@@ -16,3 +16,6 @@ target_link_libraries(testflatmap unity)
 
 add_executable(testhashalgo test_hash_algorithm.c)
 target_link_libraries(testhashalgo unity)
+
+add_executable(testutility test_utility.c)
+target_link_libraries(testutility unity)
