@@ -13,3 +13,6 @@ target_link_libraries(testarray unity)
 
 add_executable(testflatmap test_flatmap.c)
 target_link_libraries(testflatmap unity)
+
+add_executable(testhashalgo test_hash_algorithm.c)
+target_link_libraries(testhashalgo unity)

@@ -30,7 +30,7 @@
  * -Define fmap_key_equalsfn(left,right) to override the key equality test behavior
  * 	-Default behavior is a simple equality operator
  * -Define fmap_hashfn(key) to provide your own hashing function (must accept key type and return size_t)
- * 	-Default is provided tl_fnv1a_<TL_NAME>
+ * 	-Default is provided fmap_<TL_NAME>_fnv1a
  * -Define TL_NAME to set the provided name
  * 	-Default is to concatenate the TL_K and TL_V values
  * -Define TL_NO_ZERO_MEM to stop zeroing stop the zeroing of memory in non-critical code
@@ -56,9 +56,22 @@
 #define TL_NAME TLCONCAT(TL_K,TL_V)
 #endif
 
+#define _PFX TLSYMBOL(fmap,TL_NAME)
+
+#include "hash_algorithm.h"
 
 
 
+
+
+
+
+
+
+
+
+
+#undef _PFX
 #undef TL_NAME
 #undef fmap_key_equalsfn
 #undef TL_V
