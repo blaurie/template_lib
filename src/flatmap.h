@@ -51,19 +51,25 @@
 
 #include "common.h"
 
-#ifndef fmap_key_equalsfn
-#define fmap_key_equalsfn(left,right) (left) == (right)
-#endif
-
 #ifndef TL_NAME
 #define TL_NAME TLCONCAT(TL_K,TL_V)
 #endif
 
 #define _PFX TLSYMBOL(fmap,TL_NAME)
 
+/**
+ * Enable user provided key equality function
+ */
+#ifndef fmap_key_equalsfn
+#define fmap_key_equalsfn(left,right) (left) == (right)
+#endif
+
+/**
+ * Enable user provided hash function
+ */
+#ifndef fmap_hashfn
 #include "hash_algorithm.h"
 
-#ifndef fmap_hashfn
 #  ifdef TL_KEY_IS_NT
 #    define fmap_hashfn(key) tlhash_ntfnv1a(key)
 #  else
@@ -71,6 +77,9 @@
 #  endif
 #endif
 
+/**
+ * section for defaut values
+ */
 //TL_FMAP_DEFAULT_BUCKET_COUNT must be power of 2
 #define TL_FMAP_DEFAULT_BUCKET_COUNT 8u
 #define TL_FMAP_DEFAULT_LOAD_FACTOR 0.7f
@@ -79,6 +88,28 @@
 //todo: probably its own header later
 #ifndef TL_UTILITY_FNS
 #define TL_UTILITY_FNS
+
+//next power of two
+static inline size_t
+tl_util_npot(size_t s)
+{
+	if (s < 2) return 2;
+
+	size_t runs;
+	size_t sz = sizeof(size_t) * 8;
+	for (runs = 0; sz > 8; runs++) {
+		sz = sz >> 1u;
+	}
+	runs++;
+
+	s--;
+	size_t shift = 1u;
+	for (size_t i = 0; i <= runs; i++) {
+		s |= s >> shift;
+		shift <<= 1u;
+	}
+	return ++s;
+}
 
 //todo: func to round up to nearest power of two
 //todo: func to calculate log2n
@@ -106,8 +137,8 @@
 
 //todo: <add> a new key value pair
 //todo: <insert> a key value pair (or replace if the key exists)
-//todo: <erase> a key value pair
-//todo: <remove> a key value pair
+//todo: <erase> a key value pair and don't return the value
+//todo: <remove> a key value pair and return the value
 //todo: <clear> the whole map
 //todo: <get> a value for a provided key
 //todo: <try_get> a value for a provided key, returning a status
