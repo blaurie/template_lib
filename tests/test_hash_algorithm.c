@@ -1,10 +1,10 @@
 #include <unity.h>
 
-#include "common.h"
+#include "private/common.h"
 
 #define _PFX fmap_test
 #define TL_K int
-#include "hash_algorithm.h"
+#include "private/hash_algorithm.h"
 
 
 void setUp(void)
@@ -41,7 +41,7 @@ struct point
 #define _PFX fmap_test_point
 #define TL_K struct point
 
-#include "hash_algorithm.h"
+#include "private/hash_algorithm.h"
 
 void test_struct_fnv1a(void)
 {

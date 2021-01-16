@@ -49,7 +49,7 @@
 #error "TL_V not define dfor flatmap.h"
 #endif
 
-#include "common.h"
+#include "private/common.h"
 
 #ifndef TL_NAME
 #define TL_NAME TLCONCAT(TL_K,TL_V)
@@ -68,7 +68,7 @@
  * Enable user provided hash function
  */
 #ifndef fmap_hashfn
-#include "hash_algorithm.h"
+#include "private/hash_algorithm.h"
 
 #  ifdef TL_KEY_IS_NT
 #    define fmap_hashfn(key) tlhash_ntfnv1a(key)
