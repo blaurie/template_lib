@@ -7,5 +7,9 @@ FetchContent_Declare(unity
 		GIT_TAG "v2.5.1")
 FetchContent_MakeAvailable(unity)
 
+
 add_executable(testarray test_array.c)
 target_link_libraries(testarray unity)
+
+add_executable(testflatmap test_flatmap.c)
+target_link_libraries(testflatmap unity)
