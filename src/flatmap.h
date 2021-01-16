@@ -36,6 +36,9 @@
  * -Define TL_NO_ZERO_MEM to stop zeroing stop the zeroing of memory in non-critical code
  * -Define TL_KEY_IS_NT to use the provided tl_fnv1a_nt(key) instead of tl_fnv1a_<TL_NAME>(key)
  *
+ *
+ * Examples:
+ * todo: examples for how to include!
  */
 
 #ifndef TL_K
@@ -60,17 +63,63 @@
 
 #include "hash_algorithm.h"
 
+#ifndef fmap_hashfn
+#  ifdef TL_KEY_IS_NT
+#    define fmap_hashfn(key) tlhash_ntfnv1a(key)
+#  else
+#    define fmap_hashfn(key) TLSYMBOL(_PFX,fnv1a)(key)
+#  endif
+#endif
+
+//TL_FMAP_DEFAULT_BUCKET_COUNT must be power of 2
+#define TL_FMAP_DEFAULT_BUCKET_COUNT 8u
+#define TL_FMAP_DEFAULT_LOAD_FACTOR 0.7f
+
+
+//todo: probably its own header later
+#ifndef TL_UTILITY_FNS
+#define TL_UTILITY_FNS
+
+//todo: func to round up to nearest power of two
+//todo: func to calculate log2n
+
+#endif
+
+
+//todo: cell struct
+//todo: the fmap struct
+
+
+
+//todo: init
+//todo: init_all
+//todo: deinit
+//todo: new
+//todo: new_all
+//todo: delete
+
+//todo: probe for open
+//todo: probe for key
+
+//todo: rehash
+//todo: grow
+
+//todo: <add> a new key value pair
+//todo: <insert> a key value pair (or replace if the key exists)
+//todo: <erase> a key value pair
+//todo: <remove> a key value pair
+//todo: <clear> the whole map
+//todo: <get> a value for a provided key
+//todo: <try_get> a value for a provided key, returning a status
 
 
 
 
 
 
-
-
-
-
-
+#undef TL_FMAP_DEFAULT_LOAD_FACTOR
+#undef TL_FMAP_DEFAULT_BUCKET_COUNT
+#undef fmap_hashfn
 #undef _PFX
 #undef TL_NAME
 #undef fmap_key_equalsfn
