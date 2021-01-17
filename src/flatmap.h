@@ -15,8 +15,8 @@
  * Slot 1 of a given bucket is the fastest to acquire.
  *
  * We also provide 2 hashing functions by default:
- * tl_fnv1a_nt(key)		- Hash till reaching a null terminator value (good for c strings)
- * tl_fnv1a_<TL_NAME>(key)	- Hash for the sizeof(TL_K)
+ * tlhash_ntfnv1a(key)		- Hash till reaching a null terminator value (good for c strings)
+ * fmap_<TL_NAME>_fnv1a(key)	- Hash for the sizeof(TL_K)
  *
  * If you need any other hashing behavior, it is up to the user to provide it and define fmap_hashfn(key).
  *
@@ -34,7 +34,7 @@
  * -Define TL_NAME to set the provided name
  * 	-Default is to concatenate the TL_K and TL_V values
  * -Define TL_NO_ZERO_MEM to stop zeroing stop the zeroing of memory in non-critical code
- * -Define TL_KEY_IS_NT to use the provided tl_fnv1a_nt(key) instead of tl_fnv1a_<TL_NAME>(key)
+ * -Define TL_KEY_IS_NT to use the provided tlhash_ntfnv1a(key) instead of fmap_<TL_NAME>_fnv1a(key)
  *
  *
  * Examples:
@@ -51,6 +51,7 @@
 
 #include "private/common.h"
 #include "private/utility.h"
+#include "private/map_slot_state.h"
 
 #ifndef TL_NAME
 #define TL_NAME TLCONCAT(TL_K,TL_V)
@@ -87,8 +88,29 @@
 
 
 
-//todo: cell struct
-//todo: the fmap struct
+/**
+ * fmap_<TL_NAME>_node
+ * flatmap node containing a key, value pair.
+ */
+struct TLSYMBOL(_PFX,node)
+{
+	TL_K key;
+	TL_V value;
+};
+
+struct _PFX
+{
+	size_t num_buckets;
+	size_t bucket_max;
+	size_t capacity;
+	size_t load_max;
+	size_t size;
+	size_t slot_mask;
+	struct TLSYMBOL(_PFX,node)* nodes;
+	enum tl_map_slot_state* info;
+	float load_factor;
+};
+
 
 
 
