@@ -132,7 +132,7 @@ TLSYMBOL(_PFX,init_all)(struct _PFX* fm, const size_t num_buckets, const float l
 {
 	assert(fm != NULL);
 	assert(num_buckets > 1u);
-	assert(load_factor >= 1.0f);
+	assert(load_factor <= 1.0f);
 
 	const size_t buckets = tl_util_npot(num_buckets);
 	const size_t bucket_max = tl_util_log2n(buckets);
@@ -354,6 +354,9 @@ TLSYMBOL(_PFX,grow)(struct _PFX* fm)
 
 
 //todo: <add> a new key value pair
+
+
+
 //todo: <insert> a key value pair (or replace if the key exists)
 //todo: <erase> a key value pair and don't return the value
 //todo: <remove> a key value pair and return the value

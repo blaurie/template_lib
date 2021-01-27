@@ -11,8 +11,8 @@ FetchContent_MakeAvailable(unity)
 add_executable(testarray test_array.c)
 target_link_libraries(testarray unity)
 
-add_executable(testflatmap test_flatmap_zero_mem.c)
-target_link_libraries(testflatmap unity)
+add_executable(testflatmapzm test_flatmap_zero_mem.c)
+target_link_libraries(testflatmapzm unity)
 
 add_executable(testhashalgo test_hash_algorithm.c)
 target_link_libraries(testhashalgo unity)
