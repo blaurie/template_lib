@@ -63,13 +63,14 @@
  * Enable user provided key equality function
  */
 #ifndef fmap_key_equalsfn
-#define fmap_key_equalsfn(left,right) (left) == (right)
+#define fmap_key_equalsfn(left, right) (left) == (right)
 #endif
 
 /**
  * Enable user provided hash function
  */
 #ifndef fmap_hashfn
+
 #include "private/hash_algorithm.h"
 
 #  ifdef TL_KEY_IS_NT
@@ -87,17 +88,27 @@
 #define TL_FMAP_DEFAULT_LOAD_FACTOR 0.7f
 
 
-
 /**
  * fmap_<TL_NAME>_node
  * flatmap node containing a key, value pair.
  */
-struct TLSYMBOL(_PFX,node)
+struct TLSYMBOL(_PFX, node)
 {
 	TL_K key;
 	TL_V value;
 };
 
+/**
+ * num_buckets - (private) The number of the buckets
+ * bucket_max  - (private) Max elements in each bucket
+ * capacity    - (private) The total elements the map can hold (num_buckets * bucket_max)
+ * load_max    - (private) The total elements before the map should grow
+ * size        - (public) The number of elements current in the map
+ * slot_mask   - (private) The mask used to transform a hash to a bucket index
+ * nodes       - (private) The elements
+ * info        - (private) Extra information about each node location
+ * load_factor - (private) The fill percentage to target before growth
+ */
 struct _PFX
 {
 	size_t num_buckets;
@@ -106,13 +117,10 @@ struct _PFX
 	size_t load_max;
 	size_t size;
 	size_t slot_mask;
-	struct TLSYMBOL(_PFX,node)* nodes;
+	struct TLSYMBOL(_PFX, node)* nodes;
 	enum tl_map_slot_state* info;
 	float load_factor;
 };
-
-
-
 
 
 /**
@@ -128,7 +136,7 @@ struct _PFX
  * @return
  */
 static inline enum tl_status
-TLSYMBOL(_PFX,init_all)(struct _PFX* fm, const size_t num_buckets, const float load_factor)
+TLSYMBOL(_PFX, init_all)(struct _PFX* fm, const size_t num_buckets, const float load_factor)
 {
 	assert(fm != NULL);
 	assert(num_buckets > 1u);
@@ -138,8 +146,9 @@ TLSYMBOL(_PFX,init_all)(struct _PFX* fm, const size_t num_buckets, const float l
 	const size_t bucket_max = tl_util_log2n(buckets);
 	const size_t capacity = buckets * bucket_max;
 
-	struct TLSYMBOL(_PFX,node)* nodes = tlcalloc(capacity, sizeof(struct TLSYMBOL(_PFX,node)));
-	if (!nodes) return TL_ERR_MEM;
+	struct TLSYMBOL(_PFX, node)* nodes = tlcalloc(capacity, sizeof(struct TLSYMBOL(_PFX, node)));
+	if (!nodes)
+		return TL_ERR_MEM;
 
 	enum tl_map_slot_state* info = tlcalloc(capacity, sizeof(enum tl_map_slot_state));
 	if (!info) {
@@ -162,20 +171,21 @@ TLSYMBOL(_PFX,init_all)(struct _PFX* fm, const size_t num_buckets, const float l
 
 //todo: init
 static inline enum tl_status
-TLSYMBOL(_PFX,init)(struct _PFX* fm)
+TLSYMBOL(_PFX, init)(struct _PFX* fm)
 {
-	return TLSYMBOL(_PFX,init_all)(fm, TL_FMAP_DEFAULT_BUCKET_COUNT, TL_FMAP_DEFAULT_LOAD_FACTOR);
+	return TLSYMBOL(_PFX, init_all)(fm, TL_FMAP_DEFAULT_BUCKET_COUNT, TL_FMAP_DEFAULT_LOAD_FACTOR);
 }
 
 
 //todo: deinit
 static inline void
-TLSYMBOL(_PFX,deinit)(struct _PFX* fm)
+TLSYMBOL(_PFX, deinit)(struct _PFX* fm)
 {
 	assert(fm != NULL);
 	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
 #ifndef TL_NO_ZERO_MEM
-	tlmemset(fm->nodes, TL_INIT_VAL, fm->capacity * sizeof(struct TLSYMBOL(_PFX,node)));
+	tlmemset(fm->nodes, TL_INIT_VAL, fm->capacity * sizeof(struct TLSYMBOL(_PFX, node)));
 	tlmemset(fm->info, TL_INIT_VAL, fm->capacity * sizeof(enum tl_map_slot_state));
 	fm->size = 0u;
 	fm->capacity = 0u;
@@ -194,14 +204,15 @@ TLSYMBOL(_PFX,deinit)(struct _PFX* fm)
 
 //todo: new_all
 static inline struct _PFX*
-TLSYMBOL(_PFX,new_all)(const size_t num_buckets, const float load_factor)
+TLSYMBOL(_PFX, new_all)(const size_t num_buckets, const float load_factor)
 {
 	assert(num_buckets > 1u);
-	assert(load_factor >= 1.0f);
+	assert(load_factor <= 1.0f);
 	struct _PFX* tmp = tlmalloc(sizeof(struct _PFX));
-	if (!tmp) return NULL;
+	if (!tmp)
+		return NULL;
 
-	if (TLSYMBOL(_PFX,init_all)(tmp, num_buckets, load_factor) != TLOK) {
+	if (TLSYMBOL(_PFX, init_all)(tmp, num_buckets, load_factor) != TLOK) {
 		tlfree(tmp);
 		return NULL;
 	}
@@ -212,19 +223,21 @@ TLSYMBOL(_PFX,new_all)(const size_t num_buckets, const float load_factor)
 
 //todo: new
 static inline struct _PFX*
-TLSYMBOL(_PFX,new)()
+TLSYMBOL(_PFX, new)()
 {
-	return TLSYMBOL(_PFX,new_all)(TL_FMAP_DEFAULT_BUCKET_COUNT, TL_FMAP_DEFAULT_LOAD_FACTOR);
+	return TLSYMBOL(_PFX, new_all)(TL_FMAP_DEFAULT_BUCKET_COUNT, TL_FMAP_DEFAULT_LOAD_FACTOR);
 }
 
 
 //todo: delete
 static inline void
-TLSYMBOL(_PFX,delete)(struct _PFX** fm)
+TLSYMBOL(_PFX, delete)(struct _PFX** fm)
 {
 	assert(*fm != NULL);
-	if ((*fm)->nodes != NULL)
-		TLSYMBOL(_PFX,deinit)(*fm);
+
+	/* this if "shouldn't" be necessary unless user is a dumb dumb. deinit asserts anyway. */
+	//if ((*fm)->nodes != NULL)
+	TLSYMBOL(_PFX, deinit)(*fm);
 
 #ifndef TL_NO_ZERO_MEM
 	tlmemset(*fm, TL_INIT_VAL, sizeof(struct _PFX));
@@ -238,7 +251,7 @@ TLSYMBOL(_PFX,delete)(struct _PFX** fm)
  * probe_open is for internal use only
  */
 static inline size_t
-TLSYMBOL(_PFX,probe_open)(const enum tl_map_slot_state* info, const size_t bucket_index, const size_t bucket_capacity)
+TLSYMBOL(_PFX, probe_open)(const enum tl_map_slot_state* info, const size_t bucket_index, const size_t bucket_capacity)
 {
 	size_t slot;
 
@@ -261,7 +274,7 @@ TLSYMBOL(_PFX,probe_open)(const enum tl_map_slot_state* info, const size_t bucke
  * probe_key is for internal use only
  */
 static inline enum tl_status
-TLSYMBOL(_PFX,probe_key)(struct TLSYMBOL(_PFX,node)* nodes, const enum tl_map_slot_state* info,
+TLSYMBOL(_PFX, probe_key)(struct TLSYMBOL(_PFX, node)* nodes, const enum tl_map_slot_state* info,
 	const size_t bucket_index, const size_t bucket_capacity, TL_K key, size_t* out_slot)
 {
 	size_t slot;
@@ -288,7 +301,7 @@ TLSYMBOL(_PFX,probe_key)(struct TLSYMBOL(_PFX,node)* nodes, const enum tl_map_sl
 	if (delt_slot != bucket_capacity) slot = delt_slot;
 
 	*out_slot = slot;
-	return TL_ENF;
+	return (slot < bucket_capacity) ? TL_ENF : TL_OOB;
 }
 
 /**
@@ -296,13 +309,13 @@ TLSYMBOL(_PFX,probe_key)(struct TLSYMBOL(_PFX,node)* nodes, const enum tl_map_sl
  * note - rehash requires new_nodes to be large enough!
  */
 static inline void
-TLSYMBOL(_PFX,rehash)(struct TLSYMBOL(_PFX,node)* old_nodes, const enum tl_map_slot_state* old_info, const size_t old_capacity,
-	struct TLSYMBOL(_PFX,node)* new_nodes,  enum tl_map_slot_state* new_info, const size_t new_bucket_max, const size_t new_mask)
+TLSYMBOL(_PFX, rehash)(struct TLSYMBOL(_PFX, node)* old_nodes, const enum tl_map_slot_state* old_info, const size_t old_capacity,
+	struct TLSYMBOL(_PFX, node)* new_nodes, enum tl_map_slot_state* new_info, const size_t new_bucket_max, const size_t new_mask)
 {
 	for (size_t slot = 0; slot < old_capacity; slot++) {
 		if (old_info[slot] == TL_MAPSS_OCCUPIED || old_info[slot] == TL_MAPSS_COLLIDED) {
-			const size_t bucket = fmap_hashfn(old_nodes[slot].key) & new_mask;
-			const size_t new_slot = TLSYMBOL(_PFX,probe_open)(new_info, bucket, new_bucket_max);
+			const size_t bucket = (fmap_hashfn(old_nodes[slot].key) & new_mask) * new_bucket_max;
+			const size_t new_slot = TLSYMBOL(_PFX, probe_open)(new_info, bucket, new_bucket_max);
 			const size_t pos = bucket + new_slot;
 
 			new_nodes[pos] = old_nodes[slot];
@@ -314,7 +327,7 @@ TLSYMBOL(_PFX,rehash)(struct TLSYMBOL(_PFX,node)* old_nodes, const enum tl_map_s
 
 //todo: grow
 static inline enum tl_status
-TLSYMBOL(_PFX,grow)(struct _PFX* fm)
+TLSYMBOL(_PFX, grow)(struct _PFX* fm)
 {
 	assert(fm != NULL);
 	assert(fm->nodes != NULL);
@@ -323,10 +336,11 @@ TLSYMBOL(_PFX,grow)(struct _PFX* fm)
 	const size_t new_buckets = fm->num_buckets << 1;
 	const size_t new_mask = new_buckets - 1;
 	const size_t new_bucket_capacity = tl_util_log2n(new_buckets);
-	const size_t new_capacity = new_buckets + new_bucket_capacity;
+	const size_t new_capacity = new_buckets * new_bucket_capacity;
 
-	struct TLSYMBOL(_PFX,node)* new_nodes = tlcalloc(new_capacity, sizeof(struct TLSYMBOL(_PFX,node)));
-	if (!new_nodes) return TL_ERR_MEM;
+	struct TLSYMBOL(_PFX, node)* new_nodes = tlcalloc(new_capacity, sizeof(struct TLSYMBOL(_PFX, node)));
+	if (!new_nodes)
+		return TL_ERR_MEM;
 
 	enum tl_map_slot_state* new_info = tlcalloc(new_capacity, sizeof(enum tl_map_slot_state));
 	if (!new_info) {
@@ -334,10 +348,10 @@ TLSYMBOL(_PFX,grow)(struct _PFX* fm)
 		return TL_ERR_MEM;
 	}
 
-	TLSYMBOL(_PFX,rehash)(fm->nodes, fm->info, fm->capacity, new_nodes, new_info, new_bucket_capacity, new_mask);
+	TLSYMBOL(_PFX, rehash)(fm->nodes, fm->info, fm->capacity, new_nodes, new_info, new_bucket_capacity, new_mask);
 
 #ifndef TL_NO_ZERO_MEM
-	tlmemset(fm->nodes, TL_INIT_VAL, fm->capacity * sizeof(struct TLSYMBOL(_PFX,node)));
+	tlmemset(fm->nodes, TL_INIT_VAL, fm->capacity * sizeof(struct TLSYMBOL(_PFX, node)));
 	tlmemset(fm->info, TL_INIT_VAL, fm->capacity * sizeof(enum tl_map_slot_state));
 #endif
 	tlfree(fm->nodes);
@@ -348,13 +362,49 @@ TLSYMBOL(_PFX,grow)(struct _PFX* fm)
 	fm->bucket_max = new_bucket_capacity;
 	fm->slot_mask = new_mask;
 	fm->capacity = new_capacity;
+	fm->load_max = new_capacity * fm->load_factor;
 	return TLOK;
 }
 
 
-
 //todo: <add> a new key value pair
+static inline enum tl_status
+TLSYMBOL(_PFX, add)(struct _PFX* fm, TL_K key, TL_V value)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
 
+	if (fm->size >= fm->load_max)
+		TLSYMBOL(_PFX, grow)(fm);
+
+	size_t hash = fmap_hashfn(key);
+	size_t slot;
+	size_t slot_index;
+
+	RETRY_ADD:
+	slot = hash & fm->slot_mask;
+	slot *= fm->bucket_max;
+	slot_index = 0;
+
+	switch (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_index)) {
+	case TL_ENF:		/* What we want for this function! */
+		fm->nodes[slot + slot_index].key = key;
+		fm->nodes[slot + slot_index].value = value;
+		fm->info[slot + slot_index] = (slot_index == 0) ? TL_MAPSS_OCCUPIED : TL_MAPSS_COLLIDED;
+		fm->size++;
+		return TLOK;
+	case TLOK:		/* Actually bad for this function! */
+		return TL_EAE;
+	case TL_OOB:
+		if (TLSYMBOL(_PFX, grow)(fm) != TLOK)
+			return TL_ERR_MEM;
+
+		goto RETRY_ADD;
+	default:
+		return TL_ERROR;
+	}
+}
 
 
 //todo: <insert> a key value pair (or replace if the key exists)
