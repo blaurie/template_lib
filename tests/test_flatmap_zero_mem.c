@@ -380,7 +380,7 @@ void test_add_fill_bucket(void)
 		TEST_ASSERT_EQUAL_INT(TLOK, val);
 	}
 
-	//we expect that a grow will not have occurred!
+	/* we expect that a grow will not have occurred! */
 	TEST_ASSERT_EQUAL_size_t(fm.bucket_max, fm.size);
 	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
 	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
@@ -407,7 +407,7 @@ void test_add_fill_bucket_then_diff_bucket(void)
 
 	TEST_ASSERT_EQUAL_INT(TLOK, val);
 
-	//we expect that a grow will not have occurred!
+	/* we expect that a grow will not have occurred! */
 	TEST_ASSERT_EQUAL_size_t(fm.bucket_max + 1, fm.size);
 	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
 	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
@@ -445,7 +445,7 @@ void test_add_grow_by_full_bucket(void)
 
 	TEST_ASSERT_EQUAL_INT(TLOK, val);
 
-	//we expect that a grow will have occurred!
+	/* we expect that a grow will have occurred! */
 	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
 	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
 	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
@@ -490,7 +490,7 @@ void test_add_grow_into_beginning(void)
 
 	TEST_ASSERT_EQUAL_INT(TLOK, val);
 
-	//we expect that a grow will have occurred!
+	/* we expect that a grow will have occurred! */
 	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
 	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
 	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
@@ -535,7 +535,7 @@ void test_add_grow_into_end(void)
 
 	TEST_ASSERT_EQUAL_INT(TLOK, val);
 
-	//we expect that a grow will have occurred!
+	/* we expect that a grow will have occurred! */
 	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
 	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
 	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
@@ -699,15 +699,14 @@ void test_get_after_grow(void)
 	struct fmap_intint fm;
 	fmap_intint_init_all(&fm, 16, 70u);
 
-	int keys[fm.capacity];
-	size_t capacity = fm.capacity;
+	size_t capacity = fm.load_max + 1;
+	int* keys = generate_list(capacity, 1);
 	for (int i = 0; i < capacity; i++) {
-		keys[i] = rand();
 		fmap_intint_add(&fm, keys[i], 101 + i);
 	}
 
-	TEST_ASSERT_EQUAL_size_t(capacity, fm.size);	//todo: suppose I should fix this test. eh
-	TEST_ASSERT_NOT_EQUAL_size_t(capacity, fm.capacity);	// confirms a grow happened.
+	TEST_ASSERT_EQUAL_size_t(capacity, fm.size);
+	TEST_ASSERT_NOT_EQUAL_size_t(capacity, fm.capacity);	/* confirms a grow happened. */
 
 	for (int i = 0; i < fm.bucket_max; i++) {
 		int value = fmap_intint_get(&fm, keys[i]);
@@ -715,8 +714,7 @@ void test_get_after_grow(void)
 		TEST_ASSERT_EQUAL_INT(101 + i, value);
 	}
 
-
-
+	tlfree(keys);
 	fmap_intint_deinit(&fm);
 }
 
@@ -744,6 +742,607 @@ void test_get_after_many_grow(void)
 	tlfree(keys);
 	fmap_intint_deinit(&fm);
 }
+
+
+
+
+
+/**********************************************************************************************************************
+ * try_get Tests
+ **********************************************************************************************************************/
+
+void test_try_get_one(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init(&fm);
+
+	fmap_intint_add(&fm, 9876543, 101);
+	int x;
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, 9876543, &x));
+
+	TEST_ASSERT_EQUAL_INT(101, x);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_begin(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init(&fm);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 758929);
+	fmap_intint_add(&fm, key, 101);
+	int x;
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, key, &x));
+
+	TEST_ASSERT_EQUAL_INT(101, x);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_missing(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init(&fm);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 758929);
+	fmap_intint_add(&fm, key, 101);
+	int x = 0;
+
+	TEST_ASSERT_EQUAL_INT(TL_ENF, fmap_intint_try_get(&fm, 475678, &x));
+
+	TEST_ASSERT_EQUAL_INT(0, x);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_last_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init(&fm);
+
+	int key = find_key_in_bucket(fm.bucket_max - 1, fm.slot_mask, 758929);
+	fmap_intint_add(&fm, key, 101);
+	int x;
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, key, &x));
+
+	TEST_ASSERT_EQUAL_INT(101, x);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_end_of_begin(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init(&fm);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(0, fm.slot_mask, 4757 * i);
+		fmap_intint_add(&fm, keys[i], 101 + i);
+	}
+
+	for (int i = 0; i < fm.bucket_max; i++) {
+		int x;
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, keys[i], &x));
+
+		TEST_ASSERT_EQUAL_INT(101 + i, x);
+	}
+
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_end_of_end(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 16, 70u);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(15, fm.slot_mask, 4757 * i);
+		fmap_intint_add(&fm, keys[i], 101 + i);
+	}
+
+	for (int i = 0; i < fm.bucket_max; i++) {
+		int x;
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, keys[i], &x));
+		TEST_ASSERT_EQUAL_INT(101 + i, x);
+	}
+
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_after_grow(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 16, 70u);
+
+	size_t capacity = fm.load_max + 1;
+	int* keys = generate_list(capacity, 1);
+	for (int i = 0; i < capacity; i++) {
+		fmap_intint_add(&fm, keys[i], 101 + i);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(capacity, fm.size);
+	TEST_ASSERT_NOT_EQUAL_size_t(capacity, fm.capacity);	/* confirms a grow happened. */
+
+	for (int i = 0; i < fm.bucket_max; i++) {
+		int x;
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, keys[i], &x));
+
+		TEST_ASSERT_EQUAL_INT(101 + i, x);
+	}
+
+	tlfree(keys);
+	fmap_intint_deinit(&fm);
+}
+
+void test_try_get_after_many_grow(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	size_t capacity = 2000;
+	int* keys = generate_list(capacity, 1);
+
+	for (int i = 0; i < capacity; i++) {
+		fmap_intint_add(&fm, keys[i], 101 + i);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(capacity, fm.size);
+
+	for (int i = 0; i < fm.bucket_max; i++) {
+		int x;
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_try_get(&fm, keys[i], &x));
+
+		TEST_ASSERT_EQUAL_INT(101 + i, x);
+	}
+
+
+	tlfree(keys);
+	fmap_intint_deinit(&fm);
+}
+
+
+
+
+
+
+/**********************************************************************************************************************
+ * insert Tests
+ **********************************************************************************************************************/
+
+void test_insert_one(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	/**
+	 * tset
+	 * hashes to 0x50d090ef4acbcc21
+	 * goes to slot 1
+	 * which means 1 * bucket_max = 3
+	 */
+	int key = 1952805748;
+	int value = 10;
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_insert(&fm, key, value));
+
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(3, fm.bucket_max);
+	TEST_ASSERT_EQUAL_size_t(7, fm.slot_mask);
+	TEST_ASSERT_EQUAL_size_t(24, fm.capacity);
+	TEST_ASSERT_EQUAL_FLOAT(70u, fm.load_factor);
+	TEST_ASSERT_EQUAL_size_t(16, fm.load_max);
+	TEST_ASSERT_EQUAL_size_t(1, fm.size);
+	TEST_ASSERT_NOT_NULL(fm.nodes);
+	TEST_ASSERT_NOT_NULL(fm.info);
+
+	TEST_ASSERT_EQUAL_INT(1952805748, fm.nodes[3].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[3].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[3]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_begin(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 11111);
+	fmap_intint_insert(&fm, key, 10);
+
+	TEST_ASSERT_EQUAL_size_t(1, fm.size);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[0].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[0].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[0]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_end(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(7, fm.slot_mask, 11111);
+	fmap_intint_insert(&fm, key, 10);
+
+	size_t pos = 7 * fm.bucket_max;
+	TEST_ASSERT_EQUAL_size_t(1, fm.size);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[pos].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[pos].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[pos]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_two_diff_buckets(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(2, fm.slot_mask, 100000);
+	fmap_intint_insert(&fm, key, 10);
+
+	int key2 = find_key_in_bucket(4, fm.slot_mask, 100000);
+	fmap_intint_insert(&fm, key2, 20);
+
+	TEST_ASSERT_EQUAL_size_t(2, fm.size);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[2 * fm.bucket_max].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[2 * fm.bucket_max].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[2 * fm.bucket_max]);
+
+	TEST_ASSERT_EQUAL_INT(key2, fm.nodes[4 * fm.bucket_max].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[4 * fm.bucket_max].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[4 * fm.bucket_max]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_two_same_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(2, fm.slot_mask, 100000);
+	fmap_intint_insert(&fm, key, 10);
+
+	int key2 = find_key_in_bucket(2, fm.slot_mask, 1000000);
+	fmap_intint_insert(&fm, key2, 20);
+
+	TEST_ASSERT_EQUAL_size_t(2, fm.size);
+	size_t pos = 2 * fm.bucket_max;
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[pos].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[pos].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[pos]);
+
+	size_t pos2 = pos + 1;
+	TEST_ASSERT_EQUAL_INT(key2, fm.nodes[pos2].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[pos2].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[pos2]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_two_same_bucket_begin(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 100000);
+	fmap_intint_insert(&fm, key, 10);
+
+	int key2 = find_key_in_bucket(0, fm.slot_mask, 1000000);
+	fmap_intint_insert(&fm, key2, 20);
+
+	TEST_ASSERT_EQUAL_size_t(2, fm.size);
+	size_t pos = 0;
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[pos].key);
+	TEST_ASSERT_EQUAL_INT(10, fm.nodes[pos].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[pos]);
+
+	size_t pos2 = pos + 1;
+	TEST_ASSERT_EQUAL_INT(key2, fm.nodes[pos2].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[pos2].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[pos2]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_two_same_key(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(2, fm.slot_mask, 100000);
+	fmap_intint_insert(&fm, key, 10);
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_insert(&fm, key, 20));
+
+	TEST_ASSERT_EQUAL_size_t(1, fm.size);
+	size_t pos = 2 * fm.bucket_max;
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[pos].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[pos].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[pos]);
+
+	size_t pos2 = pos + 1;
+	TEST_ASSERT_EQUAL_INT(0, fm.nodes[pos2].key);
+	TEST_ASSERT_EQUAL_INT(0, fm.nodes[pos2].value);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_EMPTY, fm.info[pos2]);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_fill_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	for (size_t i = 1; i <= fm.bucket_max; i++) {
+		int key = find_key_in_bucket(2, fm.slot_mask, i * 100000);
+		enum tl_status val = fmap_intint_insert(&fm, key, i * 10);
+
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	/* we expect that a grow will not have occurred! */
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max, fm.size);
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
+
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_fill_bucket_then_diff_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+
+	for (size_t i = 1; i <= fm.bucket_max; i++) {
+		int key = find_key_in_bucket(2, fm.slot_mask, i * 100000);
+		enum tl_status val = fmap_intint_insert(&fm, key, i * 10);
+
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	int key = find_key_in_bucket(3, fm.slot_mask, 100000);
+	enum tl_status val = fmap_intint_insert(&fm, key, 60);
+
+	TEST_ASSERT_EQUAL_INT(TLOK, val);
+
+	/* we expect that a grow will not have occurred! */
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max + 1, fm.size);
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
+
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_grow_by_full_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+	size_t old_bucket_max = fm.bucket_max;
+
+	int keys[30];
+
+	for (size_t i = 1; i <= fm.bucket_max; i++) {
+		keys[i - 1] = find_key_in_bucket(2, fm.slot_mask, i * 100000);
+		enum tl_status val = fmap_intint_insert(&fm, keys[i - 1], i * 10);
+
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	keys[old_bucket_max] = find_key_in_bucket(2, fm.slot_mask, 11111);
+	enum tl_status val = fmap_intint_insert(&fm, keys[old_bucket_max], 60);
+
+	for (size_t i = 0; i < old_bucket_max + 1; i++) {
+		size_t hash = fmap_intint_fnv1a(keys[i]);
+		size_t bucket = hash & fm.slot_mask;
+		size_t slot = bucket * fm.bucket_max;
+		size_t slot_i = 0;
+		enum tl_status val = fmap_intint_probe_key(fm.nodes, fm.info, slot, fm.bucket_max, keys[i], &slot_i);
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	TEST_ASSERT_EQUAL_INT(TLOK, val);
+
+	/* we expect that a grow will have occurred! */
+	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
+	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_grow_into_beginning(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+	size_t old_bucket_max = fm.bucket_max;
+
+	int keys[30];
+
+	/**
+	 * keep in mind that if the subsequent bucket will be 0, then the current bucket is also
+	 * guaranteed to be 0
+	 */
+	for (size_t i = 1; i <= fm.bucket_max; i++) {
+		keys[i - 1] = find_key_in_bucket(0, 15, i * 100000);
+		enum tl_status val = fmap_intint_insert(&fm, keys[i - 1], i * 10);
+
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(old_bucket_max, fm.size);
+
+	keys[old_bucket_max] = find_key_in_bucket(0, 15, 11111);
+	enum tl_status val = fmap_intint_insert(&fm, keys[old_bucket_max], 60);
+
+	for (size_t i = 0; i < old_bucket_max + 1; i++) {
+		size_t hash = fmap_intint_fnv1a(keys[i]);
+		size_t bucket = hash & fm.slot_mask;
+		size_t slot = bucket * fm.bucket_max;
+		size_t slot_i = 0;
+		enum tl_status ret = fmap_intint_probe_key(fm.nodes, fm.info, slot, fm.bucket_max, keys[i], &slot_i);
+		TEST_ASSERT_EQUAL_INT(TLOK, ret);
+	}
+
+	TEST_ASSERT_EQUAL_INT(TLOK, val);
+
+	/* we expect that a grow will have occurred! */
+	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
+	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_grow_into_end(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+	size_t old_bucket_max = fm.bucket_max;
+
+	int keys[30];
+
+	/**
+	 * keep in mind that if the subsequent bucket will be 15, then the earlier must also be the end
+	 * bucket
+	 */
+	for (size_t i = 1; i <= fm.bucket_max; i++) {
+		keys[i - 1] = find_key_in_bucket(15, 15, i * 100000);
+		enum tl_status val = fmap_intint_insert(&fm, keys[i - 1], i * 10);
+
+		TEST_ASSERT_EQUAL_INT(TLOK, val);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(old_bucket_max, fm.size);
+
+
+	keys[old_bucket_max] = find_key_in_bucket(15, 15, 11111);
+	enum tl_status val = fmap_intint_insert(&fm, keys[old_bucket_max], 60);
+
+	for (size_t i = 0; i < old_bucket_max + 1; i++) {
+		size_t hash = fmap_intint_fnv1a(keys[i]);
+		size_t bucket = hash & fm.slot_mask;
+		size_t slot = bucket * fm.bucket_max;
+		size_t slot_i = 0;
+		enum tl_status ret = fmap_intint_probe_key(fm.nodes, fm.info, slot, fm.bucket_max, keys[i], &slot_i);
+		TEST_ASSERT_EQUAL_INT(TLOK, ret);
+	}
+
+	TEST_ASSERT_EQUAL_INT(TLOK, val);
+
+	/* we expect that a grow will have occurred! */
+	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(old_bucket_max + 1, fm.size);
+	TEST_ASSERT_EQUAL_size_t(fm.num_buckets * fm.bucket_max, fm.capacity);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_grow_size_bound(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	size_t bound = (fm.num_buckets * fm.bucket_max * fm.load_factor) / 100;
+	int bucket = 0;
+
+	/**
+	 * Distribute in to a guaranteed bucket up till the grow boundary
+	 */
+	for (int i = 0; i < bound; i++, bucket++) {
+		if (bucket >= fm.num_buckets)
+			bucket = 0;
+
+		int key = find_key_in_bucket(bucket, fm.slot_mask, 12345 * i + 1);
+		fmap_intint_insert(&fm, key, 10 * (i + 1));
+	}
+
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(bound, fm.size);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_over_grow_bound(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	size_t bound = (fm.num_buckets * fm.bucket_max * fm.load_factor) / 100;
+	int bucket = 0;
+
+	/**
+	 * Distribute in to a guaranteed bucket up till the grow boundary
+	 */
+	for (int i = 0; i < bound; i++, bucket++) {
+		if (bucket >= fm.num_buckets)
+			bucket = 0;
+
+		int key = find_key_in_bucket(bucket, fm.slot_mask, 12345 * i + 1);
+		fmap_intint_insert(&fm, key, 10 * (i + 1));
+	}
+
+	TEST_ASSERT_EQUAL_size_t(8, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(bound, fm.size);
+
+	int key = find_key_in_bucket(bucket, fm.slot_mask, 12345 * (int)bound + 1);
+	fmap_intint_add(&fm, key, 10 * ((int)bound + 1));
+
+	TEST_ASSERT_EQUAL_size_t(16, fm.num_buckets);
+	TEST_ASSERT_EQUAL_size_t(bound + 1u, fm.size);
+	TEST_ASSERT_EQUAL_size_t(44, fm.load_max);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_insert_overwrite_many(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int num = 2000;
+	int* keys = generate_list(num, 1);
+	for (int i = 0; i < num; i++) {
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_insert(&fm, keys[i], i + 1234));
+	}
+
+	TEST_ASSERT_EQUAL_size_t(num, fm.size);
+	size_t capacity_check = fm.capacity;
+
+	for (int i = 0; i < num; i++) {
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_insert(&fm, keys[i], i + 4321));
+	}
+
+	TEST_ASSERT_EQUAL_size_t(capacity_check, fm.capacity);
+	TEST_ASSERT_EQUAL_size_t(num, fm.size);
+
+	for (int i = 0; i < num; i++) {
+		TEST_ASSERT_EQUAL_INT(i + 4321, fmap_intint_get(&fm, keys[i]));
+	}
+
+	fmap_intint_deinit(&fm);
+}
+
+
+
+
+
 
 
 
@@ -784,6 +1383,30 @@ int main(void)
 	RUN_TEST(test_get_after_grow);
 	RUN_TEST(test_get_after_many_grow);
 
+	RUN_TEST(test_try_get_one);
+	RUN_TEST(test_try_get_begin);
+	RUN_TEST(test_try_get_missing);
+	RUN_TEST(test_try_get_last_bucket);
+	RUN_TEST(test_try_get_end_of_begin);
+	RUN_TEST(test_try_get_end_of_end);
+	RUN_TEST(test_try_get_after_grow);
+	RUN_TEST(test_try_get_after_many_grow);
+
+	RUN_TEST(test_insert_one);
+	RUN_TEST(test_insert_begin);
+	RUN_TEST(test_insert_end);
+	RUN_TEST(test_insert_two_diff_buckets);
+	RUN_TEST(test_insert_two_same_bucket);
+	RUN_TEST(test_insert_two_same_bucket_begin);
+	RUN_TEST(test_insert_two_same_key);
+	RUN_TEST(test_insert_fill_bucket);
+	RUN_TEST(test_insert_fill_bucket_then_diff_bucket);
+	RUN_TEST(test_insert_grow_by_full_bucket);
+	RUN_TEST(test_insert_grow_into_beginning);
+	RUN_TEST(test_insert_grow_into_end);
+	RUN_TEST(test_insert_grow_size_bound);
+	RUN_TEST(test_insert_over_grow_bound);
+	RUN_TEST(test_insert_overwrite_many);
 
 
 	return UNITY_END();

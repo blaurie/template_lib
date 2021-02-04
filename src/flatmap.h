@@ -381,7 +381,7 @@ TLSYMBOL(_PFX, add)(struct _PFX* fm, TL_K key, TL_V value)
 			return TL_ERR_MEM;
 	}
 
-	size_t hash = fmap_hashfn(key);
+	const size_t hash = fmap_hashfn(key);
 	size_t slot;
 	size_t slot_index;
 
@@ -434,9 +434,70 @@ TLSYMBOL(_PFX,get)(struct _PFX* fm, TL_K key)
 
 
 //todo: <try_get> a value for a provided key, returning a status
+static inline enum tl_status
+TLSYMBOL(_PFX,try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
+
+	const size_t hash = TLSYMBOL(_PFX,fnv1a)(key);
+	const size_t bucket = hash & fm->slot_mask;
+	const size_t slot = bucket * fm->bucket_max;
+	size_t slot_idx = 0;
+
+	if (TLSYMBOL(_PFX,probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx) != TLOK) {
+		return TL_ENF;
+	}
+
+	*out_value = fm->nodes[slot + slot_idx].value;
+	return TLOK;
+}
 
 
 //todo: <insert> a key value pair (or replace if the key exists)
+static inline enum tl_status
+TLSYMBOL(_PFX,insert)(struct _PFX* fm, TL_K key, TL_V value)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
+
+	if (fm->size >= fm->load_max) {
+		if (TLSYMBOL(_PFX, grow)(fm) != TLOK)
+			return TL_ERR_MEM;
+	}
+
+	const size_t hash = fmap_hashfn(key);
+	size_t slot;
+	size_t slot_index;
+
+	RETRY_ADD:
+	slot = hash & fm->slot_mask;
+	slot *= fm->bucket_max;
+	slot_index = 0;
+
+	switch (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_index)) {
+	case TL_ENF:
+		fm->size++;
+	case TLOK:
+		fm->nodes[slot + slot_index].key = key;
+		fm->nodes[slot + slot_index].value = value;
+		fm->info[slot + slot_index] = (slot_index == 0) ? TL_MAPSS_OCCUPIED : TL_MAPSS_COLLIDED;
+		return TLOK;
+	case TL_OOB:
+		if (TLSYMBOL(_PFX, grow)(fm) != TLOK)
+			return TL_ERR_MEM;
+
+		goto RETRY_ADD;
+	default:
+		return TL_ERROR;
+	}
+}
+
+
+
+
 //todo: <erase> a key value pair and don't return the value
 //todo: <remove> a key value pair and return the value
 //todo: <clear> the whole map
