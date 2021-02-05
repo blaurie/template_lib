@@ -412,18 +412,18 @@ TLSYMBOL(_PFX, add)(struct _PFX* fm, TL_K key, TL_V value)
 
 //todo: <get> a value for a provided key
 static inline TL_V
-TLSYMBOL(_PFX,get)(struct _PFX* fm, TL_K key)
+TLSYMBOL(_PFX, get)(struct _PFX* fm, TL_K key)
 {
 	assert(fm != NULL);
 	assert(fm->nodes != NULL);
 	assert(fm->info != NULL);
 
-	const size_t hash = TLSYMBOL(_PFX,fnv1a)(key);
+	const size_t hash = TLSYMBOL(_PFX, fnv1a)(key);
 	const size_t bucket = hash & fm->slot_mask;
 	const size_t slot = bucket * fm->bucket_max;
 	size_t slot_idx = 0;
 
-	if (TLSYMBOL(_PFX,probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx) != TLOK) {
+	if (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx) != TLOK) {
 		TL_V value;
 		tlmemset(&value, TL_INIT_VAL, sizeof(TL_V));
 		return value;
@@ -435,18 +435,18 @@ TLSYMBOL(_PFX,get)(struct _PFX* fm, TL_K key)
 
 //todo: <try_get> a value for a provided key, returning a status
 static inline enum tl_status
-TLSYMBOL(_PFX,try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
+TLSYMBOL(_PFX, try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
 {
 	assert(fm != NULL);
 	assert(fm->nodes != NULL);
 	assert(fm->info != NULL);
 
-	const size_t hash = TLSYMBOL(_PFX,fnv1a)(key);
+	const size_t hash = TLSYMBOL(_PFX, fnv1a)(key);
 	const size_t bucket = hash & fm->slot_mask;
 	const size_t slot = bucket * fm->bucket_max;
 	size_t slot_idx = 0;
 
-	if (TLSYMBOL(_PFX,probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx) != TLOK) {
+	if (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx) != TLOK) {
 		return TL_ENF;
 	}
 
@@ -457,7 +457,7 @@ TLSYMBOL(_PFX,try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
 
 //todo: <insert> a key value pair (or replace if the key exists)
 static inline enum tl_status
-TLSYMBOL(_PFX,insert)(struct _PFX* fm, TL_K key, TL_V value)
+TLSYMBOL(_PFX, insert)(struct _PFX* fm, TL_K key, TL_V value)
 {
 	assert(fm != NULL);
 	assert(fm->nodes != NULL);
@@ -496,9 +496,47 @@ TLSYMBOL(_PFX,insert)(struct _PFX* fm, TL_K key, TL_V value)
 }
 
 
-
-
 //todo: <erase> a key value pair and don't return the value
+static inline enum tl_status
+TLSYMBOL(_PFX, erase)(struct _PFX* fm, TL_K key)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
+
+	const size_t hash = fmap_hashfn(key);
+	const size_t slot = (hash & fm->slot_mask) * fm->bucket_max;
+	size_t slot_idx = 0;
+
+	switch (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx)) {
+	case TLOK:
+#ifdef TL_NO_ZERO_MEM
+		fm->info[slot] = TL_MAPSS_DELETED;
+		return TLOK;
+#else
+	{
+		/* this should be safe since there's at least one if we get here and we swap values around */
+		const size_t open = TLSYMBOL(_PFX, probe_open)(fm->info, slot, fm->bucket_max) - 1;
+
+		if (open != slot_idx) {
+			fm->nodes[slot + slot_idx] = fm->nodes[slot + open];
+		}
+
+		fm->info[slot + open] = TL_MAPSS_EMPTY;
+		tlmemset(&(fm->nodes[slot + open]), TL_INIT_VAL, sizeof(struct TLSYMBOL(_PFX,node)));
+	}
+#endif
+		fm->size--;
+		return TLOK;
+	case TL_OOB:
+	case TL_ENF:
+		return TL_ENF;
+	default:
+		return TL_ERROR;
+	}
+}
+
+
 //todo: <remove> a key value pair and return the value
 //todo: <clear> the whole map
 
