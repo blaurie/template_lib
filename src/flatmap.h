@@ -38,7 +38,36 @@
  *
  *
  * Examples:
- * todo: examples for how to include!
+ *
+ * ---------- Example with primitive types:
+ * #define TL_K int
+ * #define TL_V int
+ * #include <flatmap.h>
+ *
+ *
+ * ---------- Example with a pointer:
+ * The notable difference here is that TL_NAME must be defined in order for symbols to successfully generate.
+ *
+ * #define TL_KEY_IS_NT
+ * #define TL_K char*
+ * #define TL_V char*
+ * #define TL_NAME char
+ * #include <flatmap.h>
+ *
+ *
+ * ---------- Example with a struct without a typedef:
+ * //Keep in mind when using a struct that the compiler must know the definition of the struct before including
+ * flatmap.h. A forward declare will not work (because the compiler must know how large the struct is!)
+ * struct point
+ * {
+ * 	int x;
+ * 	int y;
+ * };
+ *
+ * #define TL_K int
+ * #define TL_V struct point
+ * #define TL_NAME point
+ * #include <flatmap.h>
  */
 
 #ifndef TL_K
@@ -46,7 +75,7 @@
 #endif
 
 #ifndef TL_V
-#error "TL_V not define dfor flatmap.h"
+#error "TL_V not defined for flatmap.h"
 #endif
 
 #include "private/common.h"
@@ -83,7 +112,6 @@
 /**
  * section for defaut values
  */
-//TL_FMAP_DEFAULT_BUCKET_COUNT must be power of 2
 #define TL_FMAP_DEFAULT_BUCKET_COUNT 8u
 #define TL_FMAP_DEFAULT_LOAD_FACTOR 70u
 
@@ -130,10 +158,12 @@ struct _PFX
  * Note:
  * -That the num_buckets isn't the capacity. Capacity is calculated (num_buckets * (log2n(num_buckets))
  *
- * @param fm
- * @param num_buckets
- * @param load_factor
+ * @param fm the fmap_<TL_NAME> to initialize
+ * @param num_buckets the number of buckets to initialize with
+ * @param load_factor 0 - 100. whole number percentage of capacity to target before growing automatically. 70 is default.
  * @return
+ * 	TLOK on successful initialization
+ * 	TL_ERR_MEM if there was an issue acquiring memory
  */
 static inline enum tl_status
 TLSYMBOL(_PFX, init_all)(struct _PFX* fm, const size_t num_buckets, const size_t load_factor)
@@ -170,7 +200,19 @@ TLSYMBOL(_PFX, init_all)(struct _PFX* fm, const size_t num_buckets, const size_t
 	return TLOK;
 }
 
-//todo: init
+/**
+ * fmap_<TL_NAME>_init
+ * Initialize a fmap_<TL_NAME> using default values.
+ *
+ * Note:
+ * -Default number of buckets is 8
+ * -Default load factor is 70
+ *
+ * @param fm The fmap_<TL_NAME> to initialize
+ * @return
+ * 	TLOK on successful initialization
+ * 	TL_ERR_MEM if there was an issue acquiring memory
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, init)(struct _PFX* fm)
 {
@@ -178,7 +220,15 @@ TLSYMBOL(_PFX, init)(struct _PFX* fm)
 }
 
 
-//todo: deinit
+/**
+ * fmap_<TL_NAME>_deinit
+ * Deinitialize an initialized fmap_<TL_NAME>. Deinitialization frees the backing memory stores.
+ *
+ * Note:
+ * -Keys and Values are *not* freed. The user must do so.
+ *
+ * @param fm The fmap_<TL_NAME> to deinitialize
+ */
 static inline void
 TLSYMBOL(_PFX, deinit)(struct _PFX* fm)
 {
@@ -203,7 +253,16 @@ TLSYMBOL(_PFX, deinit)(struct _PFX* fm)
 }
 
 
-//todo: new_all
+/**
+ * fmap_<TL_NAME>_new_all
+ * Heap allocate and initialize a new fmap_<TL_NAME> and then return a pointer to it.
+ *
+ * @param num_buckets the number of buckets to initialize with
+ * @param load_factor 0 - 100. whole number percentage of capacity to target before growing automatically. 70 is default.
+ * @return
+ * 	Pointer to a fmap_<TL_NAME> struct on success
+ * 	NULL if any error occurred acquiring memory
+ */
 static inline struct _PFX*
 TLSYMBOL(_PFX, new_all)(const size_t num_buckets, const float load_factor)
 {
@@ -222,7 +281,18 @@ TLSYMBOL(_PFX, new_all)(const size_t num_buckets, const float load_factor)
 }
 
 
-//todo: new
+/**
+ * fmap_<TL_NAME>_new
+ * Heap allocate and initialize a new fmap_<TL_NAME> with default values and then return a pointer to it.
+ *
+ * Note:
+ * -Default number of buckets is 8
+ * -Default load factor is 70
+ *
+ * @return
+ * 	Pointer to a fmap_<TL_NAME> struct on success
+ * 	NULL if any error occurred acquiring memory
+ */
 static inline struct _PFX*
 TLSYMBOL(_PFX, new)()
 {
@@ -230,7 +300,16 @@ TLSYMBOL(_PFX, new)()
 }
 
 
-//todo: delete
+/**
+ * fmap_<TL_NAME>_delete
+ * Deinitialize and delete a heap allocated fmap_<TL_NAME>. Deinitialization frees the backing memory stores.
+ *
+ * Note:
+ * -Keys and Values are *not* freed. The user must do so.
+ * -The given fmap_<TL_NAME> will ne set to NULL.
+ *
+ * @param fm The fmap_<TL_NAME> to delete.
+ */
 static inline void
 TLSYMBOL(_PFX, delete)(struct _PFX** fm)
 {
@@ -326,7 +405,16 @@ TLSYMBOL(_PFX, rehash)(struct TLSYMBOL(_PFX, node)* old_nodes, const enum tl_map
 }
 
 
-//todo: grow
+/**
+ * fmap_<TL_NAME>_grow
+ * Grows the backing memory store for the given fmap_<TL_NAME>. This function should gnerally not be called by the user
+ * but it can be.
+ *
+ * @param fm The fmap_<TL_NAME> to grow
+ * @return
+ * 	TLOK when the grow is successful
+ * 	TL_ERR_MEM when there is an issue acquiring new memory. The original map state is untouched.
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, grow)(struct _PFX* fm)
 {
@@ -368,7 +456,19 @@ TLSYMBOL(_PFX, grow)(struct _PFX* fm)
 }
 
 
-//todo: <add> a new key value pair
+/**
+ * fmap_<TL_NAME>_add
+ * Add a new key/value pair to the given fmap_<TL_NAME> -- if the given key already exists, do nothing.
+ *
+ * @param fm The fmap_<TL_NAME> to add the key/value pair to.
+ * @param key The key
+ * @param value The value
+ * @return
+ * 	TLOK on success
+ * 	TL_ERR_MEM if a grow was caused and there was an issue acquirining memory
+ * 	TL_EAE if the key already exists
+ * 	TL_ERROR if the system failed to probe for a slot
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, add)(struct _PFX* fm, TL_K key, TL_V value)
 {
@@ -410,7 +510,17 @@ TLSYMBOL(_PFX, add)(struct _PFX* fm, TL_K key, TL_V value)
 }
 
 
-//todo: <get> a value for a provided key
+/**
+ * fmap_<TL_NAME>_get
+ * Returns the value for a given key or 0 if the key was not found.
+ *
+ * Note:
+ * -This function is not suitable if 0 is a valid value for you! use fmap_<TL_NAME>_try_get instead.
+ *
+ * @param fm The fmap_<TL_NAME> to get a value from
+ * @param key The key to use for lookup
+ * @return The value paired with the given key
+ */
 static inline TL_V
 TLSYMBOL(_PFX, get)(struct _PFX* fm, TL_K key)
 {
@@ -433,7 +543,17 @@ TLSYMBOL(_PFX, get)(struct _PFX* fm, TL_K key)
 }
 
 
-//todo: <try_get> a value for a provided key, returning a status
+/**
+ * fmap_<TL_NAME>_try_get
+ * Acquire a value for a given key out of the flatmap and set out_value from the gound value.
+ *
+ * @param fm The fmap_<TL_NAME> to acquire the value from
+ * @param key The key to use for lookup
+ * @param out_value --Out-- The value found for the given key
+ * @return
+ * 	TLOK when the key was found
+ * 	TL_ENF when the key was not found
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
 {
@@ -455,7 +575,18 @@ TLSYMBOL(_PFX, try_get)(struct _PFX* fm, TL_K key, TL_V* out_value)
 }
 
 
-//todo: <insert> a key value pair (or replace if the key exists)
+/**
+ * fmap_<TL_NAME>_insert
+ * Add a new key/value pair to the map, or replace the value of a given key if it already exists.
+ *
+ * @param fm The fmap_<TL_NAME> to add the key/value pair to
+ * @param key The key to add
+ * @param value The value to add
+ * @return
+ * 	TLOK upon success
+ * 	TL_ERR_MEM if there was an issue growing the backing arrays
+ * 	TL_ERROR if the program failed to probe for a slot
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, insert)(struct _PFX* fm, TL_K key, TL_V value)
 {
@@ -496,7 +627,16 @@ TLSYMBOL(_PFX, insert)(struct _PFX* fm, TL_K key, TL_V value)
 }
 
 
-//todo: <erase> a key value pair and don't return the value
+/**
+ * fmap_<TL_NAME>_erase
+ * Remove a key/value pair from the map. If you require the value be returned, use fmap_<TL_NAME>_remove instead
+ *
+ * @param fm the fmap_<TL_NAME> to erase an element from
+ * @param key the key to use for lookup
+ * @return
+ * 	TLOK upon successful erase
+ * 	TL_ENF if the element is not found
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, erase)(struct _PFX* fm, TL_K key)
 {
@@ -532,7 +672,18 @@ TLSYMBOL(_PFX, erase)(struct _PFX* fm, TL_K key)
 }
 
 
-//todo: <remove> a key value pair and return the value
+/**
+ * fmap_<TL_NAME>_remove
+ * Remove an element from the fmap_<TL_NAME> and give its value to parameter out_value. If you do not require the value,
+ * use fmap_<TL_NAME>_erase instead.
+ *
+ * @param fm the fmap_<TL_NAME> to remove an element from
+ * @param key the key to use for lookup
+ * @param out_value where to assine the value to upon successful lookup. If lookup is unsuccessful, remains untouched.
+ * @return
+ * 	TLOK upon successful removal
+ * 	TL_ENF if the key was not found in the map. out_value will not be assigned.
+ */
 static inline enum tl_status
 TLSYMBOL(_PFX, remove)(struct _PFX* fm, TL_K key, TL_V* out_value)
 {
@@ -570,8 +721,13 @@ TLSYMBOL(_PFX, remove)(struct _PFX* fm, TL_K key, TL_V* out_value)
 }
 
 
-//todo: <clear> the whole map
-static inline enum tl_status
+/**
+ * fmap_<TL_NAME>_clear
+ * Empty this map of all key/value pairs and set its size to 0.
+ *
+ * @param fm the fmap_<TL_NAME> to clear
+ */
+static inline void
 TLSYMBOL(_PFX, clear)(struct _PFX* fm)
 {
 	assert(fm != NULL);
@@ -584,10 +740,6 @@ TLSYMBOL(_PFX, clear)(struct _PFX* fm)
 #endif
 	fm->size = 0;
 }
-
-
-
-
 
 
 #undef TL_FMAP_DEFAULT_LOAD_FACTOR
