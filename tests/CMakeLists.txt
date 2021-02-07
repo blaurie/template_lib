@@ -17,6 +17,9 @@ target_link_libraries(testflatmapzm unity)
 add_executable(testflatmapnzm test_flatmap_no_zero_mem.c)
 target_link_libraries(testflatmapnzm unity)
 
+add_executable(testmap test_map.c)
+target_link_libraries(testmap unity)
+
 add_executable(testhashalgo test_hash_algorithm.c)
 target_link_libraries(testhashalgo unity)
 

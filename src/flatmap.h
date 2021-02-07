@@ -749,5 +749,6 @@ TLSYMBOL(_PFX, clear)(struct _PFX* fm)
 #undef TL_NAME
 #undef fmap_key_equalsfn
 #undef TL_NO_ZERO_MEM
+#undef TL_KEY_IS_NT
 #undef TL_V
 #undef TL_K
