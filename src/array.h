@@ -257,7 +257,7 @@ TLSYMBOL(_PFX, grow)(struct _PFX* a)
  * array is too small to add an element, it will automatically resize based on a->capacity * a->grow_factor.
  *
  * OPTIONS:
- * Define TLCLEAR to ensure that the end of the backing array is zeroed if it grows.
+ * Define TL_NO_ZERO_MEM to prevent zeroing memory at end of array if it grows.
  *
  * @param a The array_<TL_NAME> to add an element to.
  * @param element The element to add to the array.
