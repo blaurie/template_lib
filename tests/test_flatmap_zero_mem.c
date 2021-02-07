@@ -100,7 +100,9 @@ void test_deinit(void)
 	fm.info = tlmalloc(sizeof(enum tl_map_slot_state));
 	fmap_intint_deinit(&fm);
 
+#ifndef TEST_TL_NO_ZERO_MEM
 	TEST_ASSERT_EQUAL_size_t(0, fm.size);
+#endif
 	TEST_ASSERT_NULL(fm.nodes);
 	TEST_ASSERT_NULL(fm.info);
 }
@@ -1713,6 +1715,354 @@ void test_remove_all(void)
 	fmap_intint_deinit(&fm);
 }
 
+#else
+
+/**********************************************************************************************************************
+ * erase Tests
+ **********************************************************************************************************************/
+
+
+void test_erase_one(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = 98575;
+	fmap_intint_add(&fm, key, 20);
+
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, key));
+	TEST_ASSERT_EQUAL_size_t(0, fm.size);
+
+	const size_t hash = fmap_intint_fnv1a(key);
+	const size_t slot = (hash & fm.slot_mask) * fm.bucket_max;
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[slot]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[slot].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[slot].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_first(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 19385);
+	fmap_intint_add(&fm, key, 21039);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[0]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, key));
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[0]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[0].key);
+	TEST_ASSERT_EQUAL_INT(21039, fm.nodes[0].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_in_end_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(7, fm.slot_mask, 19385);
+	fmap_intint_add(&fm, key, 21039);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[fm.bucket_max * 7]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, key));
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max * 7]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[fm.bucket_max * 7].key);
+	TEST_ASSERT_EQUAL_INT(21039, fm.nodes[fm.bucket_max * 7].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_last_in_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(0, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, keys[fm.bucket_max - 1]));
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max - 1u, fm.size);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_last_in_last_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(7, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	size_t end_pos = (fm.bucket_max * 7u) + (fm.bucket_max - 1);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[end_pos]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, keys[fm.bucket_max - 1]));
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[end_pos]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[end_pos].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[end_pos].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max - 1u, fm.size);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_only_hits_requested_node(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max + 1];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(0, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	keys[fm.bucket_max] = find_key_in_bucket(1, fm.slot_mask, 294747);
+	fmap_intint_add(&fm, keys[fm.bucket_max], 11309);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, keys[fm.bucket_max - 1]));
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max, fm.size);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[fm.bucket_max]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max], fm.nodes[fm.bucket_max].key);
+	TEST_ASSERT_EQUAL_INT(11309, fm.nodes[fm.bucket_max].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_erase_all(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70);
+
+	int count = 1000;
+	int* keys = generate_list(count, 1);
+	for (int i = 0; i < count; i++) {
+		fmap_intint_add(&fm, keys[i], 147 + keys[i]);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(count, fm.size);
+
+	for (int i = 0; i < count; i++) {
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_erase(&fm, keys[i]));
+	}
+
+	TEST_ASSERT_EQUAL_size_t(0u, fm.size);
+
+	for (size_t i = 0; i < fm.capacity; i++) {
+		if (fm.info[i] != TL_MAPSS_EMPTY)
+			TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[i]);
+	}
+
+	tlfree(keys);
+	fmap_intint_deinit(&fm);
+}
+
+
+
+
+
+
+/**********************************************************************************************************************
+ * remove Tests
+ **********************************************************************************************************************/
+
+void test_remove_one(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = 98575;
+	fmap_intint_add(&fm, key, 20);
+
+	int value = 0;
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, key, &value));
+	TEST_ASSERT_EQUAL_size_t(0, fm.size);
+	TEST_ASSERT_EQUAL_INT(20, value);
+
+	const size_t hash = fmap_intint_fnv1a(key);
+	const size_t slot = (hash & fm.slot_mask) * fm.bucket_max;
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[slot]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[slot].key);
+	TEST_ASSERT_EQUAL_INT(20, fm.nodes[slot].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_first(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(0, fm.slot_mask, 19385);
+	fmap_intint_add(&fm, key, 21039);
+
+	int value = 0;
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[0]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, key, &value));
+	TEST_ASSERT_EQUAL_INT(21039, value);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[0]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[0].key);
+	TEST_ASSERT_EQUAL_INT(21039, fm.nodes[0].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_in_end_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int key = find_key_in_bucket(7, fm.slot_mask, 19385);
+	fmap_intint_add(&fm, key, 21039);
+
+	int value = 0;
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[fm.bucket_max * 7]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, key, &value));
+	TEST_ASSERT_EQUAL_INT(21039, value);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max * 7]);
+	TEST_ASSERT_EQUAL_INT(key, fm.nodes[fm.bucket_max * 7].key);
+	TEST_ASSERT_EQUAL_INT(21039, fm.nodes[fm.bucket_max * 7].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_last_in_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(0, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	int value = 0;
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, keys[fm.bucket_max - 1], &value));
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], value);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max - 1u, fm.size);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_last_in_last_bucket(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(7, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	int value = 0;
+	size_t end_pos = (fm.bucket_max * 7u) + (fm.bucket_max - 1);
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[end_pos]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, keys[fm.bucket_max - 1], &value));
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], value);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[end_pos]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[end_pos].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[end_pos].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max - 1u, fm.size);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_only_hits_requested_node(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70u);
+
+	int keys[fm.bucket_max + 1];
+	for (int i = 0; i < fm.bucket_max; i++) {
+		keys[i] = find_key_in_bucket(0, fm.slot_mask, 19385 + (i * 1000));
+		fmap_intint_add(&fm, keys[i], 21039 + keys[i]);
+	}
+
+	keys[fm.bucket_max] = find_key_in_bucket(1, fm.slot_mask, 294747);
+	fmap_intint_add(&fm, keys[fm.bucket_max], 11309);
+
+	int value = 0;
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_COLLIDED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, keys[fm.bucket_max - 1], &value));
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], value);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[fm.bucket_max - 1]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].key);
+	TEST_ASSERT_EQUAL_INT(21039 + keys[fm.bucket_max - 1], fm.nodes[fm.bucket_max - 1].value);
+	TEST_ASSERT_EQUAL_size_t(fm.bucket_max, fm.size);
+
+	TEST_ASSERT_EQUAL_INT(TL_MAPSS_OCCUPIED, fm.info[fm.bucket_max]);
+	TEST_ASSERT_EQUAL_INT(keys[fm.bucket_max], fm.nodes[fm.bucket_max].key);
+	TEST_ASSERT_EQUAL_INT(11309, fm.nodes[fm.bucket_max].value);
+
+	fmap_intint_deinit(&fm);
+}
+
+void test_remove_all(void)
+{
+	struct fmap_intint fm;
+	fmap_intint_init_all(&fm, 8, 70);
+
+	int count = 1000;
+	int* keys = generate_list(count, 1);
+	for (int i = 0; i < count; i++) {
+		fmap_intint_add(&fm, keys[i], 147 + keys[i]);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(count, fm.size);
+
+	int value = 0;
+	for (int i = 0; i < count; i++) {
+		TEST_ASSERT_EQUAL_INT(TLOK, fmap_intint_remove(&fm, keys[i], &value));
+		TEST_ASSERT_EQUAL_INT(147 + keys[i], value);
+	}
+
+	TEST_ASSERT_EQUAL_size_t(0u, fm.size);
+
+	for (size_t i = 0; i < fm.capacity; i++) {
+		if (fm.info[i] != TL_MAPSS_EMPTY)
+			TEST_ASSERT_EQUAL_INT(TL_MAPSS_DELETED, fm.info[i]);
+	}
+
+	tlfree(keys);
+	fmap_intint_deinit(&fm);
+}
+
 #endif
 
 
@@ -1777,6 +2127,7 @@ int main(void)
 	RUN_TEST(test_insert_grow_size_bound);
 	RUN_TEST(test_insert_over_grow_bound);
 	RUN_TEST(test_insert_overwrite_many);
+
 
 	RUN_TEST(test_erase_one);
 	RUN_TEST(test_erase_first);
