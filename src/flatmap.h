@@ -33,7 +33,7 @@
  * 	-Default is provided fmap_<TL_NAME>_fnv1a
  * -Define TL_NAME to set the provided name
  * 	-Default is to concatenate the TL_K and TL_V values
- * -Define TL_NO_ZERO_MEM to stop zeroing stop the zeroing of memory in non-critical code
+ * -Define TL_NO_ZERO_MEM to stop the zeroing of memory in non-critical code
  * -Define TL_KEY_IS_NT to use the provided tlhash_ntfnv1a(key) instead of fmap_<TL_NAME>_fnv1a(key)
  *
  *
@@ -509,12 +509,10 @@ TLSYMBOL(_PFX, erase)(struct _PFX* fm, TL_K key)
 	size_t slot_idx = 0;
 
 	switch (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx)) {
-	case TLOK:
+	case TLOK: {
 #ifdef TL_NO_ZERO_MEM
-		fm->info[slot] = TL_MAPSS_DELETED;
-		return TLOK;
+		fm->info[slot + slot_idx] = TL_MAPSS_DELETED;
 #else
-	{
 		/* this should be safe since there's at least one if we get here and we swap values around */
 		const size_t open = TLSYMBOL(_PFX, probe_open)(fm->info, slot, fm->bucket_max) - 1;
 
@@ -523,23 +521,69 @@ TLSYMBOL(_PFX, erase)(struct _PFX* fm, TL_K key)
 		}
 
 		fm->info[slot + open] = TL_MAPSS_EMPTY;
-		tlmemset(&(fm->nodes[slot + open]), TL_INIT_VAL, sizeof(struct TLSYMBOL(_PFX,node)));
-	}
+		tlmemset(&(fm->nodes[slot + open]), TL_INIT_VAL, sizeof(struct TLSYMBOL(_PFX, node)));
 #endif
 		fm->size--;
 		return TLOK;
-	case TL_OOB:
-	case TL_ENF:
-		return TL_ENF;
+	}
 	default:
-		return TL_ERROR;
+		return TL_ENF;
 	}
 }
 
 
 //todo: <remove> a key value pair and return the value
-//todo: <clear> the whole map
+static inline enum tl_status
+TLSYMBOL(_PFX, remove)(struct _PFX* fm, TL_K key, TL_V* out_value)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
 
+	const size_t hash = fmap_hashfn(key);
+	const size_t slot = (hash & fm->slot_mask) * fm->bucket_max;
+	size_t slot_idx = 0;
+
+	switch (TLSYMBOL(_PFX, probe_key)(fm->nodes, fm->info, slot, fm->bucket_max, key, &slot_idx)) {
+	case TLOK: {
+		*out_value = fm->nodes[slot + slot_idx].value;
+#ifdef TL_NO_ZERO_MEM
+		fm->info[slot + slot_idx] = TL_MAPSS_DELETED;
+#else
+		/* this should be safe since there's at least one if we get here and we swap values around */
+		const size_t open = TLSYMBOL(_PFX, probe_open)(fm->info, slot, fm->bucket_max) - 1;
+
+		if (open != slot_idx) {
+			fm->nodes[slot + slot_idx] = fm->nodes[slot + open];
+		}
+
+		fm->info[slot + open] = TL_MAPSS_EMPTY;
+		tlmemset(&(fm->nodes[slot + open]), TL_INIT_VAL, sizeof(struct TLSYMBOL(_PFX, node)));
+
+#endif
+		fm->size--;
+		return TLOK;
+	}
+	default:
+		return TL_ENF;
+	}
+}
+
+
+//todo: <clear> the whole map
+static inline enum tl_status
+TLSYMBOL(_PFX, clear)(struct _PFX* fm)
+{
+	assert(fm != NULL);
+	assert(fm->nodes != NULL);
+	assert(fm->info != NULL);
+
+	tlmemset(fm->info, 0, (fm->capacity * sizeof(enum tl_map_slot_state)));
+#ifndef TL_NO_ZERO_MEM
+	tlmemset(fm->nodes, TL_INIT_VAL, (fm->capacity * sizeof(struct TLSYMBOL(_PFX,node))));
+#endif
+	fm->size = 0;
+}
 
 
 
