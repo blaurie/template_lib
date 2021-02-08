@@ -313,6 +313,7 @@ TLSYMBOL(_PFX, new)()
 static inline void
 TLSYMBOL(_PFX, delete)(struct _PFX** fm)
 {
+	assert(fm != NULL);
 	assert(*fm != NULL);
 
 	/* this if "shouldn't" be necessary unless user is a dumb dumb. deinit asserts anyway. */
